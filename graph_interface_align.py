@@ -370,8 +370,8 @@ def super_imposer_helper(l1, l2, pdb, counter):
 def main():
     G_hb, G_ionic, G_adj, G_contact = parse_graphs("1brs_dataset", ["i", "c", "h", "a"])
 
-    graphs = G_ionic
-    # graphs = compose_graphs(G_hb, G_ionic)
+    # graphs = G_ionic
+    graphs = compose_graphs(G_hb, G_ionic)
     # graphs = compose_graphs(graphs, G_adj)
     # print(G_hb, G_ionic, G_adj)
     # print(G_contact)
@@ -379,8 +379,8 @@ def main():
     # graph1 = G_ionic[0]
     # graph2 = G_ionic[1]
 
-    graph1 = graphs[0]
-    graph2 = graphs[0]
+    graph1 = graphs[1]
+    graph2 = graphs[2]
 
     print("1st graph:", graph1)
     print("2nd graph:", graph2)
@@ -407,12 +407,12 @@ def main():
     #     "PDB_dataset/1brs_muts/00104/H2-B/final_half2.pdb",
     # ]
 
-    pdb = combine_PDB_structures(paths)
+    pdb1 = combine_PDB_structures(paths)
     pdb2 = combine_PDB_structures(paths2)
 
     start = time.time()
 
-    dict1, combination_dict1 = set_graph_PDB_pair(graph1, pdb)
+    dict1, combination_dict1 = set_graph_PDB_pair(graph1, pdb1)
     dict2, combination_dict2 = set_graph_PDB_pair(graph2, pdb2)
 
     ref_atom_list = compile_backbone_atoms(combination_dict1)
@@ -422,7 +422,7 @@ def main():
     print("Time to get graph pairings and compile backbone atoms:", end - start)
 
     rmsd_list, min_idx, zeroes_idx = get_rmsd_list(
-        ref_atom_list, sample_atom_list, pdb, pdb2
+        ref_atom_list, sample_atom_list, pdb1, pdb2
     )
 
     threshold = 0.2
