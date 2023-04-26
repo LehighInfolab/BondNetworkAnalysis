@@ -5,6 +5,7 @@ import sys
 import argparse
 import shutil
 import os
+import time
 
 
 import numpy as np
@@ -16,6 +17,11 @@ import grakel
 
 from Bio.PDB import Structure
 import Bio.PDB
+
+
+# Declared Constants
+hops = 1
+verbose = True
 
 
 def parse_graphs(path, bond_options):
@@ -79,6 +85,14 @@ def compose_graphs(G1, G2):
 
 
 def combine_PDB_structures(paths):
+    """Combines 2 pdb structures into one PDB with 2 separate models. Models are named 0 and 1.
+
+    Args:
+        paths (list of two strings): the list contains the two strings for the 2 pdb files to combine.
+
+    Returns:
+        Bio.PDB.Structure : a structure with both models in it
+    """
     parser = Bio.PDB.PDBParser()
     structures = []
     count = 0
@@ -107,6 +121,17 @@ def combine_PDB_structures(paths):
 
 
 def get_adjacent_residues(residue, chains, num_hops):
+    """helper function used in set_graph_pdb_pair() for getting the neighboring residues
+
+    Args:
+        residue (Bio.PDB.Residue): Current working residue
+        chains (Bio.PDB.Chains): Chain for current working residue
+        num_hops (int): Number of hops on one side of the residue. If hop=4, then 4 residues on each side for one residue totalling 9 residues.
+
+    Returns:
+        prev_res_list: a list of residues before current working residue. Prev list is reversed so that it goes in start to end order.
+        next_res_list: a list of residues after current working residue
+    """
     prev_res_list = []
     next_res_list = []
     for hops in range(1, num_hops + 1):
@@ -139,13 +164,21 @@ def get_adjacent_residues(residue, chains, num_hops):
         prev_res_list.append(prev_res)
         next_res_list.append(next_res)
 
-    # print(prev_res_list)
-    # print(next_res_list)
     prev_res_list.reverse()
     return prev_res_list, next_res_list
 
 
-def set_graph_PDB_pair(graph, pdb, hops):
+def set_graph_PDB_pair(graph, pdb):
+    """Function for creating dictionary pairs of graph nodes to PDB residues and neighbors.
+
+    Args:
+        graph (networkx.graph): Current graph to parse nodes and get dictionary of.
+        pdb (Bio.PDB.Structure): PDB with combined halves.
+        hops (int): Number of hops on one side of the residue. If hop=4, then 4 residues on each side for one residue totalling 9 residues.
+
+    Returns:
+        _type_: _description_
+    """
     dict = {}
     combination_dict = {}
     # Loop through all nodes in graph
@@ -155,6 +188,7 @@ def set_graph_PDB_pair(graph, pdb, hops):
             if str(graph.nodes[node]["chain"]) == str(chains.id):
                 # Loop through all residues to find same residue seq id in PDB as graph node
                 for residue in chains.get_residues():
+                    # If node is the same as residue, we found a node - residue match and can create a node-residue dict and a residue-neighbors dict as well.
                     if str(node) == str(residue.get_id()[1]):
                         # print(node, graph.nodes[node])
                         # print(residue)
@@ -171,27 +205,31 @@ def set_graph_PDB_pair(graph, pdb, hops):
                             prev_res_list + [residue] + next_res_list
                         )
 
-    # print(dict)
-    # print(combination_dict)
-
     # Loop through all nodes in graph
     for node in graph.nodes():
-        # Loop through all chains to get the same chain as graph node chain
-        # print(graph.nodes[node]["coord"])
+
+        # min variable to store the closest neighboring residues to the current working node
         min = [float("inf"), None]
+        # print(graph.nodes[node]["coord"])
+
+        # Saving coordinate of nodes for comparison later.
         node_coord = graph.nodes[node]["coord"]
         x1 = node_coord[0]
         y1 = node_coord[1]
         z1 = node_coord[2]
+
+        # Loop through all chains to get the opposite chain as graph node chain
         for chains in pdb.get_chains():
             if str(graph.nodes[node]["chain"]) != str(chains.id):
-                # Loop through all residues to find same residue seq id in PDB as graph node
+
+                # Loop through all alpha carbons in chain and find the closest alpha carbon to current node on opposite chain.
                 for residue in chains.get_residues():
                     vector = residue["CA"].get_vector()
                     x2 = vector[0]
                     y2 = vector[1]
                     z2 = vector[2]
 
+                    # Calculate distance. If dist is less than min distance so far, we update min with dist and current residue.
                     dist = math.sqrt(
                         math.pow(x2 - x1, 2)
                         + math.pow(y2 - y1, 2)
@@ -200,6 +238,7 @@ def set_graph_PDB_pair(graph, pdb, hops):
                     if dist < min[0]:
                         min = [dist, residue]
 
+                # After getting min distance residue on opposite chain, we get the adjacent residue lists.
                 prev_res_list, next_res_list = get_adjacent_residues(
                     min[1], chains, hops
                 )
@@ -208,6 +247,7 @@ def set_graph_PDB_pair(graph, pdb, hops):
                 if None in next_res_list:
                     continue
                 try:
+                    # Update dictionaries to include matched residues on opposite side.
                     res = dict[str(graph.nodes[node])]
                     combination_dict[res] = (
                         combination_dict[res] + prev_res_list + [min[1]] + next_res_list
@@ -237,48 +277,29 @@ def compile_backbone_atoms(combination_dict):
     return atoms_list
 
 
-def main():
-    G_hb, G_ionic, G_adj, G_contact = parse_graphs("1brs_dataset", "c")
-    hops = 1
-    # graphs = compose_graphs(G_hb, G_ionic)
-    # graphs = compose_graphs(graphs, G_adj)
-    # print(G_hb, G_ionic, G_adj)
-    # print(G_contact)
+def get_atom_list_combinations(atom_list):
+    middle_idx = int(len(atom_list) / 2)
+    chain1 = atom_list[:middle_idx]
+    chain2 = atom_list[middle_idx:]
 
-    # graph = graphs[0]
-    print(G_contact[0])
+    list_comb = [atom_list]
+    list_comb.append(chain1 + list(reversed(chain2)))
+    list_comb.append(list(reversed(chain1)) + chain2)
+    list_comb.append(list(reversed(chain1)) + list(reversed(chain2)))
 
-    paths = [
-        "PDB_dataset/1brs_muts/00104/H1-A/final_half1.pdb",
-        "PDB_dataset/1brs_muts/00104/H2-B/final_half2.pdb",
-    ]
+    # for i in list_comb:
+    #     for j in i:
+    #         # print(j)
+    #         p = j.get_parent()
+    #         print(p.get_parent(), p)
 
-    paths2 = [
-        "PDB_dataset/1brs_muts/00105/H1-A/final_half1.pdb",
-        "PDB_dataset/1brs_muts/00105/H2-D/final_half2.pdb",
-    ]
+    return list_comb
 
-    pdb = combine_PDB_structures(paths)
-    pdb2 = combine_PDB_structures(paths2)
 
-    dict1, combination_dict1 = set_graph_PDB_pair(G_contact[0], pdb, hops)
-    dict2, combination_dict2 = set_graph_PDB_pair(G_contact[1], pdb2, hops)
+def get_rmsd_list(ref_atom_list, sample_atom_list, pdb1, pdb2):
 
-    # add_opposite_nodes(G_contact[0], pdb, dict1, combination_dict1)
+    start = time.time()
 
-    # print(combination_dict1)
-    # for i in combination_dict1:
-    #     print(i)
-
-    ref_atom_list = compile_backbone_atoms(combination_dict1)
-    sample_atom_list = compile_backbone_atoms(combination_dict2)
-
-    # for i in ref_atom_list:
-    #     print(len(i))
-    # for i in sample_atom_list:
-    #     print(len(i))
-
-    # print(sample_atom_list)
     min_idx = [float("inf"), -1, -1]
     zeroes_idx = []
     rmsd_list = []
@@ -289,46 +310,145 @@ def main():
             if len(sample_atom_list[j]) < hops * 4 + 2:
                 continue
             try:
-                # sample_pdb = pdb2.copy()
-                super_imposer = Bio.PDB.Superimposer()
-                super_imposer.set_atoms(ref_atom_list[i], sample_atom_list[j])
-                super_imposer.apply(pdb2.get_atoms())
-                # print(super_imposer.rms)
-                rmsd_list.append(super_imposer.rms)
-                if super_imposer.rms < min_idx[0] and super_imposer.rms != 0:
-                    min_idx = [super_imposer.rms, i, j]
-                if super_imposer.rms == 0:
-                    zeroes_idx.append([super_imposer.rms, i, j])
-                    # print(
-                    #     ref_atom_list[i][0].get_parent(),
-                    #     sample_atom_list[j][0].get_parent(),
-                    # )
+                # Need to try all combinations of ref_atom_list and sample_atom_list for specific alignment
+
+                ref_list_comb = get_atom_list_combinations(ref_atom_list[i])
+                sample_list_comb = get_atom_list_combinations(sample_atom_list[j])
+
+                for x in range(len(ref_list_comb)):
+                    for y in range(len(sample_list_comb)):
+                        super_imposer = Bio.PDB.Superimposer()
+                        super_imposer.set_atoms(ref_list_comb[x], sample_list_comb[y])
+                        super_imposer.apply(pdb2.get_atoms())
+                        # print(super_imposer.rms)
+                        rmsd_list.append(
+                            [super_imposer.rms, ref_list_comb[x], sample_list_comb[y]]
+                        )
+                        if super_imposer.rms < min_idx[0] and super_imposer.rms != 0:
+                            min_idx = [
+                                super_imposer.rms,
+                                i,
+                                j,
+                                ref_list_comb[x],
+                                sample_list_comb[y],
+                            ]
+                        if super_imposer.rms == 0:
+                            zeroes_idx.append(
+                                [
+                                    super_imposer.rms,
+                                    i,
+                                    j,
+                                    ref_list_comb[x],
+                                    sample_list_comb[y],
+                                ]
+                            )
+                        # print(
+                        #     ref_atom_list[i][0].get_parent(),
+                        #     sample_atom_list[j][0].get_parent(),
+                        # )
             except np.linalg.LinAlgError as error:
                 # print(error)
                 continue
-    print(rmsd_list)
-    print(len(rmsd_list))
-    # print(min(rmsd_list))
+    end = time.time()
+    print("------------- RMSD calculated for all combinations -------------")
+    print("Number of RMSD calculated:", len(rmsd_list))
+    print("Time to get RMSD:", end - start)
 
-    print("Min rmsd:", min_idx[0])
-    print("Set of res on first pdb:")
-    for x in ref_atom_list[min_idx[1]]:
-        p = x.get_parent()
-        print(p.get_parent(), p)
-    print("Set of res on second pdb:")
-    for x in sample_atom_list[min_idx[2]]:
-        p = x.get_parent()
-        print(p.get_parent(), p)
-    print("Pairs with rmsd = 0 (errored):", zeroes_idx)
+    return rmsd_list, min_idx, zeroes_idx
 
+
+def super_imposer_helper(l1, l2, pdb, counter):
     super_imposer = Bio.PDB.Superimposer()
-    super_imposer.set_atoms(ref_atom_list[min_idx[1]], sample_atom_list[min_idx[2]])
-    super_imposer.apply(pdb2.get_atoms())
-    # print(super_imposer.rms)
+    super_imposer.set_atoms(l1, l2)
+    super_imposer.apply(pdb.get_atoms())
 
     io = Bio.PDB.PDBIO()
-    io.set_structure(pdb2)
-    io.save("pdb2_aligned.pdb")
+    io.set_structure(pdb)
+    io.save("results/test1/pdb_" + str(counter) + "_aligned.pdb")
+
+
+def main():
+    G_hb, G_ionic, G_adj, G_contact = parse_graphs("1brs_dataset", ["i", "c", "h", "a"])
+
+    graphs = G_ionic
+    # graphs = compose_graphs(G_hb, G_ionic)
+    # graphs = compose_graphs(graphs, G_adj)
+    # print(G_hb, G_ionic, G_adj)
+    # print(G_contact)
+
+    # graph1 = G_ionic[0]
+    # graph2 = G_ionic[1]
+
+    graph1 = graphs[0]
+    graph2 = graphs[0]
+
+    print("1st graph:", graph1)
+    print("2nd graph:", graph2)
+
+    # print(G_contact[0])
+
+    # paths = [
+    #     "PDB_dataset/1brs_muts/00104/H1-A/final_half1.pdb",
+    #     "PDB_dataset/1brs_muts/00104/H2-B/final_half2.pdb",
+    # ]
+
+    paths = [
+        "PDB_dataset/1brs_muts/00105/H1-A/final_half1.pdb",
+        "PDB_dataset/1brs_muts/00105/H2-D/final_half2.pdb",
+    ]
+
+    paths2 = [
+        "PDB_dataset/1brs_muts/00106/H1-A/final_half1.pdb",
+        "PDB_dataset/1brs_muts/00106/H2-D/final_half2.pdb",
+    ]
+
+    # paths2 = [
+    #     "PDB_dataset/1brs_muts/00104/H1-A/final_half1.pdb",
+    #     "PDB_dataset/1brs_muts/00104/H2-B/final_half2.pdb",
+    # ]
+
+    pdb = combine_PDB_structures(paths)
+    pdb2 = combine_PDB_structures(paths2)
+
+    start = time.time()
+
+    dict1, combination_dict1 = set_graph_PDB_pair(graph1, pdb)
+    dict2, combination_dict2 = set_graph_PDB_pair(graph2, pdb2)
+
+    ref_atom_list = compile_backbone_atoms(combination_dict1)
+    sample_atom_list = compile_backbone_atoms(combination_dict2)
+
+    end = time.time()
+    print("Time to get graph pairings and compile backbone atoms:", end - start)
+
+    rmsd_list, min_idx, zeroes_idx = get_rmsd_list(
+        ref_atom_list, sample_atom_list, pdb, pdb2
+    )
+
+    threshold = 0.2
+    rmsd_filtered = [i for i in rmsd_list if i[0] < threshold]
+
+    print(
+        "Number of alignments with RMSD less than", threshold, ":", len(rmsd_filtered)
+    )
+    # print(rmsd_filtered)
+    # print(min_idx)
+
+    print("Min rmsd:", min_idx[0])
+    # print("Set of res on first pdb:")
+    # for x in ref_atom_list[min_idx[1]]:
+    #     p = x.get_parent()
+    #     print(p.get_parent(), p)
+    # print("Set of res on second pdb:")
+    # for x in sample_atom_list[min_idx[2]]:
+    #     p = x.get_parent()
+    #     print(p.get_parent(), p)
+    print("Pairs with rmsd = 0 (These are errors):", zeroes_idx)
+
+    counter = 0
+    for i in rmsd_filtered:
+        super_imposer_helper(i[1], i[2], pdb2, counter)
+        counter = counter + 1
 
 
 if __name__ == "__main__":
