@@ -223,38 +223,43 @@ def set_graph_PDB_pair(graph, pdb):
             if str(graph.nodes[node]["chain"]) != str(chains.id):
 
                 # Loop through all alpha carbons in chain and find the closest alpha carbon to current node on opposite chain.
-                for residue in chains.get_residues():
-                    vector = residue["CA"].get_vector()
-                    x2 = vector[0]
-                    y2 = vector[1]
-                    z2 = vector[2]
-
-                    # Calculate distance. If dist is less than min distance so far, we update min with dist and current residue.
-                    dist = math.sqrt(
-                        math.pow(x2 - x1, 2)
-                        + math.pow(y2 - y1, 2)
-                        + math.pow(z2 - z1, 2) * 1.0
-                    )
-                    if dist < min[0]:
-                        min = [dist, residue]
-
-                # After getting min distance residue on opposite chain, we get the adjacent residue lists.
-                prev_res_list, next_res_list = get_adjacent_residues(
-                    min[1], chains, hops
-                )
-                if None in prev_res_list:
-                    continue
-                if None in next_res_list:
-                    continue
                 try:
-                    # Update dictionaries to include matched residues on opposite side.
-                    res = dict[str(graph.nodes[node])]
-                    combination_dict[res] = (
-                        combination_dict[res] + prev_res_list + [min[1]] + next_res_list
+                    for residue in chains.get_residues():
+                        vector = residue["CA"].get_vector()
+                        x2 = vector[0]
+                        y2 = vector[1]
+                        z2 = vector[2]
+
+                        # Calculate distance. If dist is less than min distance so far, we update min with dist and current residue.
+                        dist = math.sqrt(
+                            math.pow(x2 - x1, 2)
+                            + math.pow(y2 - y1, 2)
+                            + math.pow(z2 - z1, 2) * 1.0
+                        )
+                        if dist < min[0]:
+                            min = [dist, residue]
+
+                    # After getting min distance residue on opposite chain, we get the adjacent residue lists.
+                    prev_res_list, next_res_list = get_adjacent_residues(
+                        min[1], chains, hops
                     )
+                    if None in prev_res_list:
+                        continue
+                    if None in next_res_list:
+                        continue
+                    try:
+                        # Update dictionaries to include matched residues on opposite side.
+                        res = dict[str(graph.nodes[node])]
+                        combination_dict[res] = (
+                            combination_dict[res]
+                            + prev_res_list
+                            + [min[1]]
+                            + next_res_list
+                        )
+                    except:
+                        continue
                 except:
                     continue
-
     # print(list(combination_dict)[0])
     # print(combination_dict[list(combination_dict)[0]])
     return dict, combination_dict
@@ -368,7 +373,9 @@ def super_imposer_helper(l1, l2, pdb, counter):
 
 
 def main():
-    G_hb, G_ionic, G_adj, G_contact = parse_graphs("1brs_dataset", ["i", "c", "h", "a"])
+    G_hb, G_ionic, G_adj, G_contact = parse_graphs(
+        "PDB_dataset/trypsin-BPTi/DiffBond_results", ["i", "c", "h", "a"]
+    )
 
     # graphs = G_ionic
     graphs = compose_graphs(G_hb, G_ionic)
@@ -379,8 +386,8 @@ def main():
     # graph1 = G_ionic[0]
     # graph2 = G_ionic[1]
 
-    graph1 = graphs[1]
-    graph2 = graphs[2]
+    graph1 = graphs[0]
+    graph2 = graphs[1]
 
     print("1st graph:", graph1)
     print("2nd graph:", graph2)
@@ -393,13 +400,13 @@ def main():
     # ]
 
     paths = [
-        "PDB_dataset/1brs_muts/00105/H1-A/final_half1.pdb",
-        "PDB_dataset/1brs_muts/00105/H2-D/final_half2.pdb",
+        "PDB_dataset/trypsin-BPTi/1eaw+h-A.pdb",
+        "PDB_dataset/trypsin-BPTi/1eaw+h-B.pdb",
     ]
 
     paths2 = [
-        "PDB_dataset/1brs_muts/00106/H1-A/final_half1.pdb",
-        "PDB_dataset/1brs_muts/00106/H2-D/final_half2.pdb",
+        "PDB_dataset/trypsin-BPTi/3btg+h-E.pdb",
+        "PDB_dataset/trypsin-BPTi/3btg+h-I.pdb",
     ]
 
     # paths2 = [
@@ -425,8 +432,12 @@ def main():
         ref_atom_list, sample_atom_list, pdb1, pdb2
     )
 
-    threshold = 0.2
-    rmsd_filtered = [i for i in rmsd_list if i[0] < threshold]
+    # Increase threshold incrementally to get lowest relevant RMSDs
+    threshold = 0.1
+    rmsd_filtered = []
+    while len(rmsd_filtered) < 3 and threshold < 3:
+        rmsd_filtered = [i for i in rmsd_list if i[0] < threshold]
+        threshold = threshold + 0.05
 
     print(
         "Number of alignments with RMSD less than", threshold, ":", len(rmsd_filtered)
