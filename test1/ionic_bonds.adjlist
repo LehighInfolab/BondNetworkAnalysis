@@ -1,0 +1,6 @@
+#.\DiffBond_v2.py -i Dataset\1eaw+h-A.pdb Dataset\1eaw+h-B.pdb -m g a
+# GMT Sun Apr 30 20:00:17 2023
+# 
+15 1
+189 {'bond_type': 'ionic', 'weight': 4.24}
+189 0

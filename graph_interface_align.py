@@ -50,9 +50,7 @@ def parseArg():
 
     parser.add_argument(
         "-v",
-        metavar="verbose",
-        type=bool,
-        default=False,
+        action="store_true",
         help="Print out additional information when running. Default = False",
     )
 
@@ -67,51 +65,63 @@ def parseArg():
     if not i_list:
         raise argparse.ArgumentTypeError("-i requires two inputs.")
 
+    m_list = args["m"]
+
     k_hops = args["k"]
     verbose = args["v"]
     output = args["o"]
-    m_list = args["m"]
 
     if output is None:
         output = str(i_list[0]) + "_" + str(i_list[1])
 
-    return i_list, k_hops, verbose, output, m_list
+    return i_list, m_list, k_hops, verbose, output
 
 
 def parse_graphs(path, bond_options):
     """
     parse_graphs() reads all folders in a path and extracts the hbond, ionic bond, and adj bond graphs from the folder. The folders are expected to have been outputted by DiffBond_v2.py
     """
-    G_hb = []
-    G_ionic = []
-    G_adj = []
-    G_contact = []
-    print("### READING FOLDERS ###")
-    for i in os.listdir(path):
-        # print("Dir:", i)
-        if i == "graph_comparison.py" or i == "Results":
-            continue
-        if "h" in bond_options:
-            f = open(path + "/" + i + "/hbond.gml", "rb")
-            graph = nx.read_gml(f)
-            G_hb.append(graph)
+    # graphs = {}
+    graphs = []
+    print("--- Parsing current folder path:", path, "---")
 
-        if "i" in bond_options:
-            f = open(path + "/" + i + "/ionic_bonds.gml", "rb")
-            graph = nx.read_gml(f)
-            G_ionic.append(graph)
+    if "i" in bond_options:
+        try:
+            f = open(path + "/ionic_bonds.gml", "rb")
+        except:
+            raise Exception("Missing ionic_bonds.gml file")
+        graph = nx.read_gml(f)
+        graphs.append(graph)
+        # graphs["i"] = graph
 
-        if "a" in bond_options:
-            f = open(path + "/" + i + "/adj_bonds.gml", "rb")
-            graph = nx.read_gml(f)
-            G_adj.append(graph)
+    if "h" in bond_options:
+        try:
+            f = open(path + "/hbond.gml", "rb")
+        except:
+            raise Exception("Missing hbond.gml file")
+        graph = nx.read_gml(f)
+        graphs.append(graph)
+        # graphs["h"] = graph
 
-        if "c" in bond_options:
-            f = open(path + "/" + i + "/contact_bonds.gml", "rb")
-            graph = nx.read_gml(f)
-            G_contact.append(graph)
+    if "a" in bond_options:
+        try:
+            f = open(path + "/adj_bonds.gml", "rb")
+        except:
+            raise Exception("Missing adj_bonds.gml file")
+        graph = nx.read_gml(f)
+        graphs.append(graph)
+        # graphs["a"] = graph
 
-    return G_hb, G_ionic, G_adj, G_contact
+    if "c" in bond_options:
+        try:
+            f = open(path + "/contact_bonds.gml", "rb")
+        except:
+            raise Exception("Missing contact_bonds.gml file")
+        graph = nx.read_gml(f)
+        graphs.append(graph)
+        # graphs["c"] = graph
+
+    return graphs
 
 
 def get_grakel_graphs(graphs):
@@ -129,13 +139,10 @@ def get_grakel_graphs(graphs):
 
 def compose_graphs(G1, G2):
     """
-    this function takes multiple graphs and combines them. This is used for combining the hbond, ionic bond, and adj graphs
+    this function takes 2 graphs and combines them. This is used for combining the hbond, ionic bond, and adj graphs
     """
-    graphs = []
-    for i in range(len(G1)):
-        C = nx.compose(G1[i], G2[i])
-        graphs.append(C)
-    return graphs
+    C = nx.compose(G1, G2)
+    return C
 
 
 def combine_PDB_structures(paths):
@@ -427,28 +434,33 @@ def super_imposer_helper(l1, l2, pdb, counter, output_folder):
 
 
 def main():
-    i_list, k_hops, verbose, output = parseArg()
+    i_list, m_list, k_hops, verbose, output = parseArg()
 
-    G_hb, G_ionic, G_adj, G_contact = parse_graphs(
-        "PDB_dataset/trypsin-BPTi/DiffBond_results", ["i", "c", "h", "a"]
-    )
+    graphs = []
+    for i in i_list:
+        g_list = parse_graphs(i, m_list)
+        G_composed = g_list[0]
+        for index in range(1, len(g_list)):
+            G_composed = compose_graphs(G_composed, g_list[index])
 
-    # # graphs = G_ionic
-    # graphs = compose_graphs(G_hb, G_ionic)
-    # # graphs = compose_graphs(graphs, G_adj)
-    # # print(G_hb, G_ionic, G_adj)
-    # # print(G_contact)
+            if verbose:
+                print(
+                    "Combining different bond graphs...currently adding in graph",
+                    index,
+                    "for",
+                    i,
+                )
+        graphs.append(G_composed)
 
-    # # graph1 = G_ionic[0]
-    # # graph2 = G_ionic[1]
+    G_1 = graphs[0]
+    G_2 = graphs[1]
 
-    # graph1 = graphs[0]
-    # graph2 = graphs[0]
+    print("1st graph:", G_1)
+    print("2nd graph:", G_2)
 
-    # print("1st graph:", graph1)
-    # print("2nd graph:", graph2)
-
-    # # print(G_contact[0])
+    pdbs = []
+    for i in i_list:
+        pdb = combine_PDB_structures(i)
 
     # # paths = [
     # #     "PDB_dataset/1brs_muts/00104/H1-A/final_half1.pdb",
@@ -474,9 +486,6 @@ def main():
     # #     "PDB_dataset/1brs_muts/00104/H1-A/final_half1.pdb",
     # #     "PDB_dataset/1brs_muts/00104/H2-B/final_half2.pdb",
     # # ]
-
-    # pdb1 = combine_PDB_structures(paths)
-    # pdb2 = combine_PDB_structures(paths2)
 
     # start = time.time()
 

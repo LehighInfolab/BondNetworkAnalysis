@@ -1,0 +1,25 @@
+#.\DiffBond_v2.py -i Dataset\1eaw+h-A.pdb Dataset\1eaw+h-B.pdb -m g a
+# GMT Sun Apr 30 20:00:22 2023
+# 
+192 1
+14 {'bond_type': 'hbond', 'weight': 2.58}
+14 0
+193 1
+15 {'bond_type': 'hbond', 'weight': 2.67}
+15 1
+195 {'bond_type': 'hbond', 'weight': 3.05}
+194 1
+191 {'bond_type': 'hbond', 'weight': 2.86}
+191 0
+195 1
+57 {'bond_type': 'hbond', 'weight': 2.79}
+57 0
+216 1
+13 {'bond_type': 'hbond', 'weight': 2.95}
+13 0
+17 1
+40 {'bond_type': 'hbond', 'weight': 2.68}
+40 0
+39 1
+97 {'bond_type': 'hbond', 'weight': 3.21}
+97 0

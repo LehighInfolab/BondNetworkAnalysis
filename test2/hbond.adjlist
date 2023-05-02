@@ -1,0 +1,29 @@
+#.\DiffBond_v2.py -i Dataset\3btg+h-E.pdb Dataset\3btg+h-I.pdb -m g a
+# GMT Sun Apr 30 20:00:07 2023
+# 
+192 1
+514 {'bond_type': 'hbond', 'weight': 2.86}
+514 0
+193 1
+515 {'bond_type': 'hbond', 'weight': 2.7}
+515 2
+195 {'bond_type': 'hbond', 'weight': 2.91}
+214 {'bond_type': 'hbond', 'weight': 3.32}
+195 1
+57 {'bond_type': 'hbond', 'weight': 2.47}
+57 0
+216 1
+513 {'bond_type': 'hbond', 'weight': 3.07}
+513 0
+519 1
+39 {'bond_type': 'hbond', 'weight': 3.0}
+39 0
+517 2
+40 {'bond_type': 'hbond', 'weight': 2.96}
+41 {'bond_type': 'hbond', 'weight': 2.92}
+40 0
+41 0
+214 0
+539 1
+97 {'bond_type': 'hbond', 'weight': 2.83}
+97 0
