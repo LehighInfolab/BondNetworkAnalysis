@@ -109,71 +109,6 @@ def get_grakel_graphs(graphs):
     return G
 
 
-def get_adjacent_residues(residue, chains, num_hops):
-    """helper function used in set_graph_pdb_pair() for getting the neighboring residues
-
-    Args:
-        residue (Bio.PDB.Residue): Current working residue
-        chains (Bio.PDB.Chains): Chain for current working residue
-        num_hops (int): Number of hops on one side of the residue. If hop=4, then 4 residues on each side for one residue totalling 9 residues.
-
-    Returns:
-        prev_res_list: a list of residues before current working residue. Prev list is reversed so that it goes in start to end order.
-        next_res_list: a list of residues after current working residue
-    """
-    prev_res_list = []
-    next_res_list = []
-    for hops in range(1, num_hops + 1):
-        prev_res_idx = int(residue.id[1]) - hops
-        try:
-            # print(chains.__getitem__(prev_res_idx))
-            prev_res = chains.__getitem__(prev_res_idx)
-        except:
-            print(
-                "Out of bounds at beginning of protein at",
-                prev_res_idx,
-                "from",
-                residue.id[1],
-            )
-            prev_res = None
-
-        next_res_idx = int(residue.id[1]) + hops
-        try:
-            # print(chains.__getitem__(next_res_idx))
-            next_res = chains.__getitem__(next_res_idx)
-        except:
-            print(
-                "Out of bounds at end of protein at",
-                next_res_idx,
-                "from",
-                residue.id[1],
-            )
-            next_res = None
-
-        prev_res_list.append(prev_res)
-        next_res_list.append(next_res)
-
-    prev_res_list.reverse()
-    return prev_res_list, next_res_list
-
-
-def compile_backbone_atoms(combination_dict):
-    atoms_list = []
-    for c in combination_dict:
-        atoms = []
-        for res in combination_dict[c]:
-            if res == None:
-                continue
-            else:
-                # print(ref_res.get_list())
-                # print(ref_res["CA"])
-                atoms.append(res["CA"])
-            # print(atoms)
-        atoms_list.append(atoms)
-
-    return atoms_list
-
-
 def get_atom_list_combinations(atom_list):
     middle_idx = int(len(atom_list) / 2)
     chain1 = atom_list[:middle_idx]
@@ -187,7 +122,7 @@ def get_atom_list_combinations(atom_list):
     return list_comb
 
 
-def get_rmsd_list(ref_atom_list, sample_atom_list, pdb1, pdb2, k_hops, verbose):
+def get_rmsd_list(ref_atom_list, sample_atom_list, pdb1, pdb2, k_hops):
     """calculates the rmsd for every combination of ref_atom_list and sample_atom_list.
     It takes each list of atoms, get 4 orientations of each list by flipping the directions of the atoms, and then calculates the rmsd of all combinations in ref_atom_list to sample_atom_list.
 
@@ -197,7 +132,6 @@ def get_rmsd_list(ref_atom_list, sample_atom_list, pdb1, pdb2, k_hops, verbose):
         pdb1 (Bio.PDB.Structure): The full PDB associated with ref_atom_list. This is used as the reference when finding the rotation/translation matrix of RMSD.
         pdb2 (Bio.PDB.Structure): The full PDB associated with sample_atom_list. This is used as the sample to rotate and translate for the rotation/translation matrix.
         k_hops (int): Number of hops from primary atom to include in the atom_list neighborhood.
-        verbose (bool): Additional print statements for troubleshooting.
 
     Returns:
         rmsd_list (List of floats): Contains all rmsd calculated for every combination of atom list, and the
@@ -209,15 +143,23 @@ def get_rmsd_list(ref_atom_list, sample_atom_list, pdb1, pdb2, k_hops, verbose):
     zeroes_idx = []
     rmsd_list = []
 
+    # num_computes to set progress bar range
     num_computes = len(ref_atom_list)
 
-    for i in progressbar(range(len(ref_atom_list))):
+    # Loop through ref_atom_list and sample_atom_list to do rmsd matches
+    for i in progressbar(range(num_computes)):
+        # Check for error in atom list
         if len(ref_atom_list[i]) < k_hops * 4 + 2:
             continue
+
+        # Get multiple combinations of the atom list
         ref_list_comb = get_atom_list_combinations(ref_atom_list[i])
         for j in range(len(sample_atom_list)):
+            # Check for error in atom list
             if len(sample_atom_list[j]) < k_hops * 4 + 2:
                 continue
+
+            # Get multiple combinations of the atom list
             sample_list_comb = get_atom_list_combinations(sample_atom_list[j])
             try:
                 # Need to try all combinations of ref_atom_list and sample_atom_list for specific alignment
@@ -291,6 +233,9 @@ class ProteinInterface:
         end = time.time()
         if verbose:
             print("Time to get graph pairings:", end - start)
+
+        self.ref_atom_list = self.compile_backbone_atoms(self.permutation_dicts[0])
+        self.sample_atom_list = self.compile_backbone_atoms(self.permutation_dicts[1])
 
     def parse_graph_files(self, path, bond_options):
         """
@@ -404,6 +349,53 @@ class ProteinInterface:
 
         return pdbs
 
+    def get_adjacent_residues(self, residue, chains, num_hops):
+        """helper function used in set_graph_pdb_pair() for getting the neighboring residues
+
+        Args:
+            residue (Bio.PDB.Residue): Current working residue
+            chains (Bio.PDB.Chains): Chain for current working residue
+            num_hops (int): Number of hops on one side of the residue. If hop=4, then 4 residues on each side for one residue totalling 9 residues.
+
+        Returns:
+            prev_res_list: a list of residues before current working residue. Prev list is reversed so that it goes in start to end order.
+            next_res_list: a list of residues after current working residue
+        """
+        prev_res_list = []
+        next_res_list = []
+        for hops in range(1, num_hops + 1):
+            prev_res_idx = int(residue.id[1]) - hops
+            try:
+                # print(chains.__getitem__(prev_res_idx))
+                prev_res = chains.__getitem__(prev_res_idx)
+            except:
+                print(
+                    "Out of bounds at beginning of protein at",
+                    prev_res_idx,
+                    "from",
+                    residue.id[1],
+                )
+                prev_res = None
+
+            next_res_idx = int(residue.id[1]) + hops
+            try:
+                # print(chains.__getitem__(next_res_idx))
+                next_res = chains.__getitem__(next_res_idx)
+            except:
+                print(
+                    "Out of bounds at end of protein at",
+                    next_res_idx,
+                    "from",
+                    residue.id[1],
+                )
+                next_res = None
+
+            prev_res_list.append(prev_res)
+            next_res_list.append(next_res)
+
+        prev_res_list.reverse()
+        return prev_res_list, next_res_list
+
     # get graph to PDB amino acid pairings as graph_pdb_dicts
     def parse_graph_PDB_pair(self, graph, pdb, k_hops):
         """Function for creating dictionary pairs of graph nodes to PDB residues and neighbors.
@@ -431,7 +423,7 @@ class ProteinInterface:
                             # print(residue)
                             dict[str(graph.nodes[node])] = residue
 
-                            prev_res_list, next_res_list = get_adjacent_residues(
+                            prev_res_list, next_res_list = self.get_adjacent_residues(
                                 residue, chains, k_hops
                             )
                             if None in prev_res_list:
@@ -477,7 +469,7 @@ class ProteinInterface:
                                 min = [dist, residue]
 
                         # After getting min distance residue on opposite chain, we get the adjacent residue lists.
-                        prev_res_list, next_res_list = get_adjacent_residues(
+                        prev_res_list, next_res_list = self.get_adjacent_residues(
                             min[1], chains, k_hops
                         )
                         if None in prev_res_list:
@@ -501,6 +493,7 @@ class ProteinInterface:
         # print(combination_dict[list(combination_dict)[0]])
         return dict, combination_dict
 
+    # Get the alpha carbon atoms for ref_atom_list and sample_atom_list
     def set_graph_PDB_pairs(self, graph, pdb, k_hops):
         graph_pdb_dicts = []
         perm_dicts = []
@@ -512,6 +505,23 @@ class ProteinInterface:
             perm_dicts.append(perm_dict)
 
         return graph_pdb_dicts, perm_dicts
+
+    # Get the alpha carbon atoms for ref_atom_list and sample_atom_list
+    def compile_backbone_atoms(self, perm_dict):
+        atoms_list = []
+        for c in perm_dict:
+            atoms = []
+            for res in perm_dict[c]:
+                if res == None:
+                    continue
+                else:
+                    # print(ref_res.get_list())
+                    # print(ref_res["CA"])
+                    atoms.append(res["CA"])
+                # print(atoms)
+            atoms_list.append(atoms)
+
+        return atoms_list
 
 
 def main():
@@ -527,32 +537,15 @@ def main():
     print("2nd graph:", G_2)
     print("-----------------------------------------------------")
 
-    # # get graph to PDB amino acid pairings as graph_pdb_dicts
-    # graph_pdb_dicts = []
-    # perm_dicts = []
-    # start = time.time()
-    # for i in range(2):
-    #     G_pdb_dict, perm_dict = set_graph_PDB_pair(graphs[i], pdbs[i], k_hops)
-    #     graph_pdb_dicts.append(G_pdb_dict)
-    #     perm_dicts.append(perm_dict)
-    # end = time.time()
-    # if verbose:
-    #     print("Time to get graph pairings:", end - start)
-
-    # Get the alpha carbon atoms for ref_atom_list and sample_atom_list
-    ref_atom_list = compile_backbone_atoms(interface.permutation_dicts[0])
-    sample_atom_list = compile_backbone_atoms(interface.permutation_dicts[1])
-
     # Calculate the rmsd for all combinations of ref_atom_list and sample_atom_list.
     # This step will take the longest.
     start = time.time()
     rmsd_list, min_idx, zeroes_idx = get_rmsd_list(
-        ref_atom_list,
-        sample_atom_list,
+        interface.ref_atom_list,
+        interface.sample_atom_list,
         interface.pdbs[0],
         interface.pdbs[1],
         k_hops,
-        verbose,
     )
     end = time.time()
     print("------------- RMSD calculated for all combinations -------------")
@@ -571,27 +564,27 @@ def main():
 
     print("Min rmsd:", min_idx[0])
 
+    print("------------------------------------------")
     if verbose:
-        print("------------------------------------------")
         print("------------- Verbose logs -------------")
         print("------------------------------------------")
         print("Set of res on first pdb for minimum RMSD:")
-        for x in ref_atom_list[min_idx[1]]:
+        for x in interface.ref_atom_list[min_idx[1]]:
             p = x.get_parent()
             print(p.get_parent(), p)
         print("------------------------------------------")
         print("Set of res on second pdb for minimum RMSD:")
-        for x in sample_atom_list[min_idx[2]]:
+        for x in interface.sample_atom_list[min_idx[2]]:
             p = x.get_parent()
             print(p.get_parent(), p)
         print("------------------------------------------")
         print("Pairs with rmsd = 0 (These are errors):", zeroes_idx)
 
-        print("RMSD of all", len(rmsd_filtered), "calculated alignments:")
-        for i in rmsd_filtered:
-            print(i[0])
+    print("RMSD of all", len(rmsd_filtered), "calculated alignments:")
+    for i in rmsd_filtered:
+        print(i[0])
 
-        print("------------------------------------------")
+    print("------------------------------------------")
 
     counter = 0
     if os.path.exists("results/" + output):
