@@ -201,6 +201,45 @@ def get_rmsd_list(ref_atom_list, sample_atom_list, pdb1, pdb2, k_hops):
     return rmsd_list, min_idx, zeroes_idx
 
 
+def print_results(
+    interface, rmsd_list, time, threshold, rmsd_filtered, min_idx, zeroes_idx, verbose
+):
+    print("------------- RMSD calculated for all combinations -------------")
+    print("Number of RMSD calculated:", len(rmsd_list))
+    print("Time to get RMSD: {0:.2f} s".format(time))
+
+    print(
+        "Number of alignments with RMSD less than", threshold, ":", len(rmsd_filtered)
+    )
+
+    print("Min rmsd:", min_idx[0])
+
+    print(
+        "------------- RMSD of all",
+        len(rmsd_filtered),
+        "calculated alignments: -------------",
+    )
+    for i in rmsd_filtered:
+        print(i[0])
+
+    if verbose:
+        print("------------------------------------------")
+        print("------------- Verbose logs -------------")
+        print("------------------------------------------")
+        print("Set of res on first pdb for minimum RMSD:")
+        for x in interface.ref_atom_list[min_idx[1]]:
+            p = x.get_parent()
+            print(p.get_parent(), p)
+        print("------------------------------------------")
+        print("Set of res on second pdb for minimum RMSD:")
+        for x in interface.sample_atom_list[min_idx[2]]:
+            p = x.get_parent()
+            print(p.get_parent(), p)
+        print("------------------------------------------")
+        print("Pairs with rmsd = 0 (These are errors):", zeroes_idx)
+    print("------------------------------------------")
+
+
 def super_imposer_helper(l1, l2, pdb, counter, output_folder):
     """applies super imposer to pdb based off of l1 alignment to l2. Will also generate the results folder
 
@@ -232,7 +271,9 @@ class ProteinInterface:
         )
         end = time.time()
         if verbose:
-            print("Time to get graph pairings:", end - start)
+            print("------------------------------------------")
+            print("Time to get graph pairings: {0:.2f} s".format(end - start))
+            print("------------------------------------------")
 
         self.ref_atom_list = self.compile_backbone_atoms(self.permutation_dicts[0])
         self.sample_atom_list = self.compile_backbone_atoms(self.permutation_dicts[1])
@@ -548,9 +589,6 @@ def main():
         k_hops,
     )
     end = time.time()
-    print("------------- RMSD calculated for all combinations -------------")
-    print("Number of RMSD calculated:", len(rmsd_list))
-    print("Time to get RMSD:", end - start)
 
     # Increase threshold incrementally to get lowest relevant RMSDs
     threshold = 0.1
@@ -558,37 +596,27 @@ def main():
     while len(rmsd_filtered) < 5 and threshold < 3.0:
         rmsd_filtered = [i for i in rmsd_list if i[0] < threshold]
         threshold = round(threshold + 0.02, 3)
-    print(
-        "Number of alignments with RMSD less than", threshold, ":", len(rmsd_filtered)
+
+    print_results(
+        interface,
+        rmsd_list,
+        end - start,
+        threshold,
+        rmsd_filtered,
+        min_idx,
+        zeroes_idx,
+        verbose,
     )
-
-    print("Min rmsd:", min_idx[0])
-
-    print("------------------------------------------")
-    if verbose:
-        print("------------- Verbose logs -------------")
-        print("------------------------------------------")
-        print("Set of res on first pdb for minimum RMSD:")
-        for x in interface.ref_atom_list[min_idx[1]]:
-            p = x.get_parent()
-            print(p.get_parent(), p)
-        print("------------------------------------------")
-        print("Set of res on second pdb for minimum RMSD:")
-        for x in interface.sample_atom_list[min_idx[2]]:
-            p = x.get_parent()
-            print(p.get_parent(), p)
-        print("------------------------------------------")
-        print("Pairs with rmsd = 0 (These are errors):", zeroes_idx)
-
-    print("RMSD of all", len(rmsd_filtered), "calculated alignments:")
-    for i in rmsd_filtered:
-        print(i[0])
-
-    print("------------------------------------------")
 
     counter = 0
     if os.path.exists("results/" + output):
-        print("Output directory already exists. Adding files to directory...")
+        print(
+            "Output directory already exists. Adding files to",
+            "'results/",
+            output,
+            "'",
+            "directory...",
+        )
     else:
         os.makedirs("results/" + output)
         print("New output directory created.")
