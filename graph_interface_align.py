@@ -27,6 +27,7 @@ def parseArg():
     parser.add_argument(
         "-i",
         nargs=2,
+        required=True,
         metavar="InputResultFolder",
         help="Input result folders from DiffBond containing graphs and PDB file. First input will be the reference structure used for alignment and second input will be the aligned sample structure.",
     )
@@ -36,6 +37,7 @@ def parseArg():
     parser.add_argument(
         "-m",
         nargs="+",
+        required=True,
         metavar="mode",
         help="Search mode can be multiple combinations of the following options. Must include at least 1 option. Contact = c, Ionic bond = i, Hydrogen bond = h, Salt bridge = S, Cation pi = p",
     )
@@ -297,7 +299,7 @@ class ProteinInterface:
 
         if "h" in bond_options:
             try:
-                f = open(path + "/hbond.gml", "rb")
+                f = open(path + "/hbonds.gml", "rb")
             except:
                 raise Exception("Missing hbond.gml file")
             graph = nx.read_gml(f)
@@ -565,6 +567,14 @@ class ProteinInterface:
         return atoms_list
 
 
+def copy_all_PDB(i_list, dir):
+    for i in i_list:
+        pdbs = os.listdir(i + "/pdb")
+        # shutil.copy(i + "/pdb/", dir)
+        for pdb in pdbs:
+            shutil.copy(i + "/pdb/" + pdb, dir)
+
+
 def main():
     i_list, m_list, k_hops, verbose, output = parseArg()
 
@@ -621,10 +631,13 @@ def main():
         os.makedirs("results/" + output)
         print("New output directory created.")
 
-    for i in progressbar(rmsd_filtered):
-        super_imposer_helper(i[1], i[2], interface.pdbs[1], counter, output)
-        counter = counter + 1
-    print("All files added to dir: results/" + output)
+    copy_all_PDB(i_list, "results/" + output)
+
+    if len(rmsd_filtered) != 0:
+        for i in progressbar(rmsd_filtered):
+            super_imposer_helper(i[1], i[2], interface.pdbs[1], counter, output)
+            counter = counter + 1
+        print("All files added to dir: results/" + output)
 
 
 if __name__ == "__main__":
