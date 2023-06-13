@@ -7,7 +7,6 @@ import shutil
 import os
 import time
 
-
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -18,115 +17,82 @@ import grakel
 from Bio.PDB import Structure
 import Bio.PDB
 
+sys.path.insert(0, "src")
+from proteininterface import ProteinInterface
 
-# Declared Constants
-verbose = True
-
-
-def parse_graphs(path, bond_options):
-    """
-    parse_graphs() reads all folders in a path and extracts the hbond, ionic bond, and adj bond graphs from the folder. The folders are expected to have been outputted by DiffBond_v2.py
-    """
-    G_hb = []
-    G_ionic = []
-    G_adj = []
-    G_contact = []
-    print("### READING FOLDERS ###")
-    for i in os.listdir(path):
-        # print("Dir:", i)
-        if i == "graph_comparison.py" or i == "Results":
-            continue
-        if "h" in bond_options:
-            f = open(path + "/" + i + "/hbond.gml", "rb")
-            graph = nx.read_gml(f)
-            G_hb.append(graph)
-
-        if "i" in bond_options:
-            f = open(path + "/" + i + "/ionic_bonds.gml", "rb")
-            graph = nx.read_gml(f)
-            G_ionic.append(graph)
-
-        if "a" in bond_options:
-            f = open(path + "/" + i + "/adj_bonds.gml", "rb")
-            graph = nx.read_gml(f)
-            G_adj.append(graph)
-
-        if "c" in bond_options:
-            f = open(path + "/" + i + "/contact_bonds.gml", "rb")
-            graph = nx.read_gml(f)
-            G_contact.append(graph)
-
-    return G_hb, G_ionic, G_adj, G_contact
-
-
-def get_grakel_graphs(graphs):
-    """
-    this function converts graphs to networkx objects
-    """
-    G = grakel.graph_from_networkx(
-        graphs,
-        node_labels_tag="AA",
-        edge_labels_tag="bond_type",
-        edge_weight_tag="weight",
+# Parse arguments from command line
+def parseArg():
+    parser = argparse.ArgumentParser(
+        description="Aligns 2 structures to each other given graphs of the interface."
     )
-    return G
 
+    parser.add_argument(
+        "-i",
+        nargs=2,
+        required=True,
+        metavar="InputResultFolder",
+        help="Input result folders from DiffBond containing graphs and PDB file. First input will be the reference structure used for alignment and second input will be the aligned sample structure.",
+    )
 
-def compose_graphs(G1, G2):
-    """
-    this function takes multiple graphs and combines them. This is used for combining the hbond, ionic bond, and adj graphs
-    """
-    graphs = []
-    for i in range(len(G1)):
-        C = nx.compose(G1[i], G2[i])
-        graphs.append(C)
-    return graphs
+    parser.add_argument("-o", nargs="?", metavar="Output", help="Output folder name")
 
+    parser.add_argument(
+        "-m",
+        nargs="+",
+        required=True,
+        metavar="mode",
+        help="Search mode can be multiple combinations of the following options. Must include at least 1 option. Contact = c, Ionic bond = i, Hydrogen bond = h, Salt bridge = S, Cation pi = p",
+    )
 
-def combine_PDB_structures(paths):
-    """Combines 2 pdb structures into one PDB with 2 separate models. Models are named 0 and 1.
+    parser.add_argument(
+        "-k",
+        metavar="k-hops",
+        type=int,
+        default=2,
+        help="Size of neighborhood in which to align based on number of k-hops from primary amino acid. With k-hops = 2, the list of amino acids in the neighborhood will be: 1 primary AA, 2 AA within 2 hops of primary AA on each side of sequence = 4 AA, 1 AA on opposite interface, 2 AA within 2 hops of opposite AA on each side of sequence = 4 AA. Total = 10AA.",
+    )
 
-    Args:
-        paths (list of two strings): the list contains the two strings for the 2 pdb files to combine.
+    parser.add_argument(
+        "-v",
+        action="store_true",
+        help="Print out additional information when running. Default = False",
+    )
 
-    Returns:
-        Bio.PDB.Structure : a structure with both models in it
-    """
-    parser = Bio.PDB.PDBParser()
-    structures = []
-    count = 0
-    for path in paths:
-        structures.append(parser.get_structure(count, path))
-        count = count + 1
+    # parse list of args
+    try:
+        args = parser.parse_args()
+    except argparse.ArgumentError:
+        print(parser.print_help())
 
-    final_model = Bio.PDB.Structure.Structure("master")
-    count = 0
-    for structure in structures:
-        for model in list(structure):
-            new_model = model.copy()
-            new_model.id = count
-            new_model.serial_num = count + 1
-            count = count + 1
-            final_model.add(new_model)
+    args = vars(args)
+    i_list = args["i"]
+    if not i_list:
+        raise argparse.ArgumentTypeError("-i requires two inputs.")
 
-    # for model in final_model.get_models():
-    #     print(model)
-    #     for chain in model.get_chains():
-    #         print(chain)
-    #         for residue in chain.get_residues():
-    #             print(residue)
+    m_list = args["m"]
 
-    return final_model
+    k_hops = args["k"]
+    verbose = args["v"]
+    output = args["o"]
+
+    if output is None:
+        output = str(i_list[0]) + "_" + str(i_list[1])
+
+    return i_list, m_list, k_hops, verbose, output
 
 
 def main():
-    G_hb, G_ionic, G_adj, G_contact = parse_graphs(
-        "PDB_dataset/trypsin-BPTi/DiffBond_results", ["i", "c", "h", "a"]
-    )
-    graphs = compose_graphs(G_hb, G_ionic)
+    # i_list, m_list, k_hops, verbose, output = parseArg()
+    i_list = [
+        "dataset\\Result_1brs_barnase_A+h_1brs_barstar_D+h",
+        "dataset\\Result_1brs_barnase_A+h_1brs_barstar_D+h",
+    ]
+    m_list = ["i", "h"]
+    k_hops = 3
+    verbose = True
 
-    graph1 = graphs[0]
-    graph2 = graphs[1]
+    interface = ProteinInterface(i_list, m_list, k_hops, verbose=verbose)
 
-    print("1st graph:", graph1)
-    print("2nd graph:", graph2)
+
+if __name__ == "__main__":
+    main()
