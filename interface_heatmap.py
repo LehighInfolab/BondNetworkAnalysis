@@ -89,9 +89,11 @@ def main():
     ]
     m_list = ["i", "h"]
     k_hops = 3
-    verbose = True
+    verbose = False
 
     interface = ProteinInterface(i_list, m_list, k_hops, verbose=verbose)
+    print(interface.graphs[0].nodes["35"])
+    print(list(interface.graphs[0].edges))
 
 
 if __name__ == "__main__":
