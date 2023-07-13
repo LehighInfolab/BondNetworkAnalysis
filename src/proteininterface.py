@@ -7,6 +7,18 @@ import networkx as nx
 from Bio.PDB import Structure
 import Bio.PDB
 
+"""Class for a ProteinInterface Object. Requires input of DiffBond results folders, list of modes to incorporate into the final full graph, and number of neighbor nodes to include.
+
+Raises:
+    Exception: _description_
+    Exception: _description_
+    Exception: _description_
+    Exception: _description_
+
+Returns:
+    _type_: _description_
+"""
+
 
 class ProteinInterface:
     def __init__(self, i_list, m_list, k_hops, verbose=False):
@@ -26,83 +38,6 @@ class ProteinInterface:
 
         self.ref_atom_list = self.compile_backbone_atoms(self.permutation_dicts[0])
         self.sample_atom_list = self.compile_backbone_atoms(self.permutation_dicts[1])
-
-    def parse_graph_files(self, path, bond_options):
-        """
-        parse_graphs() reads all folders in a path and extracts the hbond, ionic bond, and adj bond graphs from the folder. The folders are expected to have been outputted by DiffBond_v2.py
-        """
-        # graphs = {}
-        graphs = []
-        print("--- Parsing current folder path:", path, "---")
-
-        if "i" in bond_options:
-            try:
-                f = open(path + "/ionic_bonds.gml", "rb")
-            except:
-                raise Exception("Missing ionic_bonds.gml file")
-            graph = nx.read_gml(f)
-            graphs.append(graph)
-            # graphs["i"] = graph
-
-        if "h" in bond_options:
-            try:
-                f = open(path + "/hbonds.gml", "rb")
-            except:
-                raise Exception("Missing hbond.gml file")
-            graph = nx.read_gml(f)
-            graphs.append(graph)
-            # graphs["h"] = graph
-
-        if "a" in bond_options:
-            try:
-                f = open(path + "/adj_bonds.gml", "rb")
-            except:
-                raise Exception("Missing adj_bonds.gml file")
-            graph = nx.read_gml(f)
-            graphs.append(graph)
-            # graphs["a"] = graph
-
-        if "c" in bond_options:
-            try:
-                f = open(path + "/contact_bonds.gml", "rb")
-            except:
-                raise Exception("Missing contact_bonds.gml file")
-            graph = nx.read_gml(f)
-            graphs.append(graph)
-            # graphs["c"] = graph
-
-        return graphs
-
-    def compose_graphs(self, G1, G2):
-        """
-        this function takes 2 graphs and combines them. This is used for combining the hbond, ionic bond, and adj graphs
-        """
-        C = nx.compose(G1, G2)
-        return C
-
-    def parse_graphs(self, i_list, m_list, verbose):
-        graphs = []
-        pdbs = []
-        for i in i_list:
-            g_list = self.parse_graph_files(i, m_list)
-            G_composed = g_list[0]
-            for j in range(1, len(g_list)):
-                G_composed = self.compose_graphs(G_composed, g_list[j])
-
-                # graph2 = self.parse_graph_files(i_list[1], m_list)
-
-                if verbose:
-                    print(
-                        "Combining different bond graphs...currently adding in",
-                        m_list[j],
-                        "graph to",
-                        m_list[0],
-                        "graph",
-                    )
-
-            graphs.append(G_composed)
-
-        return graphs
 
     def combine_PDB_structures(self, path):
         """Combines 2 pdb structures into one PDB with 2 separate models. Models are named 0 and 1.
