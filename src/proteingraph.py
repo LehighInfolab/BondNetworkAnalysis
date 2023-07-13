@@ -1,11 +1,7 @@
 import os
 import math
 import time
-
 import networkx as nx
-
-# from Bio.PDB import Structure
-# import Bio.PDB
 
 
 class ProteinGraph:

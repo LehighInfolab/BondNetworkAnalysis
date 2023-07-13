@@ -4,26 +4,29 @@ import time
 
 import networkx as nx
 
+from proteingraph import ProteinGraph
+
 from Bio.PDB import Structure
 import Bio.PDB
 
-"""Class for a ProteinInterface Object. Requires input of DiffBond results folders, list of modes to incorporate into the final full graph, and number of neighbor nodes to include.
-
-Raises:
-    Exception: _description_
-    Exception: _description_
-    Exception: _description_
-    Exception: _description_
-
-Returns:
-    _type_: _description_
-"""
-
 
 class ProteinInterface:
+    """Class for a ProteinInterface Object. Requires input of DiffBond results folders, list of modes to incorporate into the final full graph, and number of neighbor nodes to include."""
+
     def __init__(self, i_list, m_list, k_hops, verbose=False):
+        """Initialize a ProteinInterface object
+
+        Args:
+            i_list (string[]): array of 2 input strings with DiffBond folder paths
+            m_list (string[]): graph modes that can be composed
+            k_hops (int): number of neighbor amino acids to look at.
+            verbose (bool, optional): If true, prints additional information. Defaults to False.
+        """
         # parsing each graph based on results directories given in i_list
-        self.graphs = self.parse_graphs(i_list, m_list, verbose)
+        self.graphs = [
+            ProteinGraph(i_list[0], m_list).graph,
+            ProteinGraph(i_list[1], m_list).graph,
+        ]
         self.pdbs = self.parse_pdbs(i_list)
 
         start = time.time()
@@ -38,6 +41,7 @@ class ProteinInterface:
 
         self.ref_atom_list = self.compile_backbone_atoms(self.permutation_dicts[0])
         self.sample_atom_list = self.compile_backbone_atoms(self.permutation_dicts[1])
+        self.k_hops = k_hops
 
     def combine_PDB_structures(self, path):
         """Combines 2 pdb structures into one PDB with 2 separate models. Models are named 0 and 1.
@@ -123,9 +127,9 @@ class ProteinInterface:
         prev_res_list.reverse()
         return prev_res_list, next_res_list
 
-    # get graph to PDB amino acid pairings as graph_pdb_dicts
     def parse_graph_PDB_pair(self, graph, pdb, k_hops):
         """Function for creating dictionary pairs of graph nodes to PDB residues and neighbors.
+            Get graph to PDB amino acid pairings as graph_pdb_dicts
 
         Args:
                                         graph (networkx.graph): Current graph to parse nodes and get dictionary of.
@@ -220,8 +224,17 @@ class ProteinInterface:
         # print(combination_dict[list(combination_dict)[0]])
         return dict, combination_dict
 
-    # Get the alpha carbon atoms for ref_atom_list and sample_atom_list
     def set_graph_PDB_pairs(self, graph, pdb, k_hops):
+        """Get the alpha carbon atoms for ref_atom_list and sample_atom_list
+
+        Args:
+            graph (_type_): _description_
+            pdb (_type_): _description_
+            k_hops (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         graph_pdb_dicts = []
         perm_dicts = []
         for i in range(2):
@@ -233,8 +246,15 @@ class ProteinInterface:
 
         return graph_pdb_dicts, perm_dicts
 
-    # Get the alpha carbon atoms for ref_atom_list and sample_atom_list
     def compile_backbone_atoms(self, perm_dict):
+        """Get the alpha carbon atoms for ref_atom_list and sample_atom_list
+
+        Args:
+            perm_dict (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         atoms_list = []
         for c in perm_dict:
             atoms = []

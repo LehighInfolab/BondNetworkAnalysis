@@ -17,10 +17,19 @@ import Bio.PDB
 
 sys.path.insert(0, "src")
 from proteininterface import ProteinInterface
+from proteingraph import ProteinGraph
+from rmsdlist import RMSDlist
 
 
-# Parse arguments from command line
 def parseArg():
+    """Parse arguments from command line
+
+    Raises:
+        argparse.ArgumentTypeError: _description_
+
+    Returns:
+        _type_: _description_
+    """
     parser = argparse.ArgumentParser(
         description="Aligns 2 structures to each other given graphs of the interface."
     )
@@ -80,25 +89,6 @@ def parseArg():
     return i_list, m_list, k_hops, verbose, output
 
 
-def progressbar(it, prefix="", size=60, out=sys.stdout):  # Python3.3+
-    count = len(it)
-
-    def show(j):
-        x = int(size * j / count)
-        print(
-            "{}[{}{}] {}/{}".format(prefix, "#" * x, "." * (size - x), j, count),
-            end="\r",
-            file=out,
-            flush=True,
-        )
-
-    show(0)
-    for i, item in enumerate(it):
-        yield item
-        show(i + 1)
-    print("\n", flush=True, file=out)
-
-
 def get_grakel_graphs(graphs):
     """
     this function converts graphs to networkx objects
@@ -110,137 +100,6 @@ def get_grakel_graphs(graphs):
         edge_weight_tag="weight",
     )
     return G
-
-
-def get_atom_list_combinations(atom_list):
-    middle_idx = int(len(atom_list) / 2)
-    chain1 = atom_list[:middle_idx]
-    chain2 = atom_list[middle_idx:]
-
-    list_comb = [atom_list]
-    # list_comb.append(chain1 + list(reversed(chain2)))
-    # list_comb.append(list(reversed(chain1)) + chain2)
-    # list_comb.append(list(reversed(chain1)) + list(reversed(chain2)))
-
-    return list_comb
-
-
-def get_rmsd_list(ref_atom_list, sample_atom_list, pdb1, pdb2, k_hops):
-    """calculates the rmsd for every combination of ref_atom_list and sample_atom_list.
-    It takes each list of atoms, get 4 orientations of each list by flipping the directions of the atoms, and then calculates the rmsd of all combinations in ref_atom_list to sample_atom_list.
-
-    Args:
-        ref_atom_list (List of lists): Each embedded list contains a set of atoms which is the neighborhood to be used for comparison with sample_atom_list.
-        sample_atom_list (List of lists): Each embedded list contains a set of atoms which is the neighborhood to be used for comparison with ref_atom_list.
-        pdb1 (Bio.PDB.Structure): The full PDB associated with ref_atom_list. This is used as the reference when finding the rotation/translation matrix of RMSD.
-        pdb2 (Bio.PDB.Structure): The full PDB associated with sample_atom_list. This is used as the sample to rotate and translate for the rotation/translation matrix.
-        k_hops (int): Number of hops from primary atom to include in the atom_list neighborhood.
-
-    Returns:
-        rmsd_list (List of floats): Contains all rmsd calculated for every combination of atom list, and the
-        min_idx (List): A list containing associated values for the atom list combination with the lowest RMSD.
-        zeroes_idx: RMSD combinations that gave an RMSD = 0. If there are any values in this index, an error has occurred.
-    """
-
-    min_idx = [float("inf"), -1, -1]
-    zeroes_idx = []
-    rmsd_list = []
-
-    # num_computes to set progress bar range
-    num_computes = len(ref_atom_list)
-
-    # Loop through ref_atom_list and sample_atom_list to do rmsd matches
-    for i in progressbar(range(num_computes)):
-        # Check for error in atom list
-        if len(ref_atom_list[i]) < k_hops * 4 + 2:
-            continue
-
-        # Get multiple combinations of the atom list
-        ref_list_comb = get_atom_list_combinations(ref_atom_list[i])
-        for j in range(len(sample_atom_list)):
-            # Check for error in atom list
-            if len(sample_atom_list[j]) < k_hops * 4 + 2:
-                continue
-
-            # Get multiple combinations of the atom list
-            sample_list_comb = get_atom_list_combinations(sample_atom_list[j])
-            try:
-                # Need to try all combinations of ref_atom_list and sample_atom_list for specific alignment
-                for x in range(len(ref_list_comb)):
-                    for y in range(len(sample_list_comb)):
-                        super_imposer = Bio.PDB.Superimposer()
-                        super_imposer.set_atoms(ref_list_comb[x], sample_list_comb[y])
-                        super_imposer.apply(pdb2.get_atoms())
-                        # print(super_imposer.rms)
-                        rmsd_list.append(
-                            [super_imposer.rms, ref_list_comb[x], sample_list_comb[y]]
-                        )
-                        if super_imposer.rms < min_idx[0] and super_imposer.rms != 0:
-                            min_idx = [
-                                super_imposer.rms,
-                                i,
-                                j,
-                                ref_list_comb[x],
-                                sample_list_comb[y],
-                            ]
-                        if super_imposer.rms == 0:
-                            zeroes_idx.append(
-                                [
-                                    super_imposer.rms,
-                                    i,
-                                    j,
-                                    ref_list_comb[x],
-                                    sample_list_comb[y],
-                                ]
-                            )
-                        # print(
-                        #     ref_atom_list[i][0].get_parent(),
-                        #     sample_atom_list[j][0].get_parent(),
-                        # )
-            except np.linalg.LinAlgError as error:
-                # print(error)
-                continue
-
-    return rmsd_list, min_idx, zeroes_idx
-
-
-def print_results(
-    interface, rmsd_list, time, threshold, rmsd_filtered, min_idx, zeroes_idx, verbose
-):
-    print("------------- RMSD calculated for all combinations -------------")
-    print("Number of RMSD calculated:", len(rmsd_list))
-    print("Time to get RMSD: {0:.2f} s".format(time))
-
-    print(
-        "Number of alignments with RMSD less than", threshold, ":", len(rmsd_filtered)
-    )
-
-    print("Min rmsd:", min_idx[0])
-
-    print(
-        "------------- RMSD of all",
-        len(rmsd_filtered),
-        "calculated alignments: -------------",
-    )
-    for i in rmsd_filtered:
-        print(i[0])
-
-    if verbose:
-        print("------------------------------------------")
-        print("------------- Verbose logs -------------")
-        print("------------------------------------------")
-        print("Set of res on first pdb for minimum RMSD:")
-        for x in interface.ref_atom_list[min_idx[1]]:
-            p = x.get_parent()
-            print(p.get_parent(), p)
-        print("------------------------------------------")
-        print("Set of res on second pdb for minimum RMSD:")
-        for x in interface.sample_atom_list[min_idx[2]]:
-            p = x.get_parent()
-            print(p.get_parent(), p)
-        print("------------------------------------------")
-        print("Pairs with rmsd = 0 (These are errors):", zeroes_idx)
-    print("------------------------------------------")
 
 
 def super_imposer_helper(l1, l2, pdb, counter, output_folder):
@@ -270,9 +129,41 @@ def copy_all_PDB(i_list, dir):
             shutil.copy(i + "/pdb/" + pdb, dir)
 
 
+def progressbar(it, prefix="", size=60, out=sys.stdout):  # Python3.3+
+    """Prints out a progress bar in stdout in for loops
+
+    Args:
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    it (_type_): _description_
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    prefix (str, optional): _description_. Defaults to "".
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    size (int, optional): _description_. Defaults to 60.
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    out (_type_, optional): _description_. Defaults to sys.stdout.
+
+    Yields:
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    _type_: _description_
+    """
+    count = len(it)
+
+    def show(j):
+        x = int(size * j / count)
+        print(
+            "{}[{}{}] {}/{}".format(prefix, "#" * x, "." * (size - x), j, count),
+            end="\r",
+            file=out,
+            flush=True,
+        )
+
+    show(0)
+    for i, item in enumerate(it):
+        yield item
+        show(i + 1)
+    print("\n", flush=True, file=out)
+
+
 def main():
     i_list, m_list, k_hops, verbose, output = parseArg()
 
+    # g1 = ProteinGraph(i_list[0], m_list)
+    # g2 = ProteinGraph(i_list[1], m_list)
     interface = ProteinInterface(i_list, m_list, k_hops, verbose=verbose)
 
     # graph details
@@ -285,33 +176,9 @@ def main():
 
     # Calculate the rmsd for all combinations of ref_atom_list and sample_atom_list.
     # This step will take the longest.
-    start = time.time()
-    rmsd_list, min_idx, zeroes_idx = get_rmsd_list(
-        interface.ref_atom_list,
-        interface.sample_atom_list,
-        interface.pdbs[0],
-        interface.pdbs[1],
-        k_hops,
-    )
-    end = time.time()
 
-    # Increase threshold incrementally to get lowest relevant RMSDs
-    threshold = 0.1
-    rmsd_filtered = []
-    while len(rmsd_filtered) < 5 and threshold < 3.0:
-        rmsd_filtered = [i for i in rmsd_list if i[0] < threshold]
-        threshold = round(threshold + 0.02, 3)
-
-    print_results(
-        interface,
-        rmsd_list,
-        end - start,
-        threshold,
-        rmsd_filtered,
-        min_idx,
-        zeroes_idx,
-        verbose,
-    )
+    rmsd_list = RMSDlist(interface)
+    rmsd_list.print()
 
     counter = 0
     if os.path.exists("results/" + output):
@@ -328,8 +195,8 @@ def main():
 
     copy_all_PDB(i_list, "results/" + output)
 
-    if len(rmsd_filtered) != 0:
-        for i in progressbar(rmsd_filtered):
+    if len(rmsd_list.filtered_rmsd) != 0:
+        for i in progressbar(rmsd_list.filtered_rmsd):
             super_imposer_helper(i[1], i[2], interface.pdbs[1], counter, output)
             counter = counter + 1
         print("All files added to dir: results/" + output)
