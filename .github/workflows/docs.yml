@@ -24,7 +24,7 @@ jobs:
           python-version: "3.12"
 
       # ADJUST THIS: install all dependencies (including pdoc)
-      # - run: pip install -e .
+      - run: pip install pdoc
       # ADJUST THIS: build your documentation into docs/.
       # We use a custom build script for pdoc itself, ideally you just run `pdoc -o docs/ ...` here.
       - run: pdoc .\graph_interface_align.py .\src\bond_matching.py .\src\proteingraph.py .\src\proteininterface.py .\src\read_pdb.py .\src\rmsdlist.py .\src\ska_wrapper.py .\src\write_pdb.py .\interface_heatmap.py -t .\docs\custom-template -o docs
