@@ -1,0 +1,1 @@
+docker run --privileged --rm -v [path to graph_comparisonfolder]:/root --name bond_network -it bond_network

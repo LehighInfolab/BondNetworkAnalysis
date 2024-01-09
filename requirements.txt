@@ -1,0 +1,3 @@
+git man curl build-essential screen gdb libssl-dev psmisc python3 pip
+
+python.exe .\graph_interface_align.py -i .\dataset\1brs_dataset\00105 .\dataset\1brs_dataset\00106 -m c -v     

@@ -1,10 +1,13 @@
+.gitignore
+
 ## datasets
-1brs_dataset
 dataset
-PDB_dataset
-lynx_dataset
 
-
+## results
 results
-
+interface_results
 heatmap_data
+
+## old scripts
+run_script.sh
+runbondnetworkdev.ps1

@@ -29,10 +29,9 @@ class ProteinGraph:
             try:
                 f = open(path + "/ionic_bonds.gml", "rb")
             except:
-                raise Exception("Missing ionic_bonds.gml file")
+                raise Exception("Missing ionic_bonds.gml file.")
             graph = nx.read_gml(f)
             graphs.append(graph)
-            # graphs["i"] = graph
 
         if "h" in bond_options:
             try:
@@ -41,7 +40,14 @@ class ProteinGraph:
                 raise Exception("Missing hbond.gml file")
             graph = nx.read_gml(f)
             graphs.append(graph)
-            # graphs["h"] = graph
+
+        if "s" in bond_options:
+            try:
+                f = open(path + "/salt_bridges_bonds.gml", "rb")
+            except:
+                raise Exception("Missing salt_bridges_bonds.gml file")
+            graph = nx.read_gml(f)
+            graphs.append(graph)
 
         if "a" in bond_options:
             try:
@@ -50,7 +56,6 @@ class ProteinGraph:
                 raise Exception("Missing adj_bonds.gml file")
             graph = nx.read_gml(f)
             graphs.append(graph)
-            # graphs["a"] = graph
 
         if "c" in bond_options:
             try:
@@ -59,7 +64,6 @@ class ProteinGraph:
                 raise Exception("Missing contact_bonds.gml file")
             graph = nx.read_gml(f)
             graphs.append(graph)
-            # graphs["c"] = graph
 
         return graphs
 
